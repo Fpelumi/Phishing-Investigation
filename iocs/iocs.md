@@ -1,0 +1,86 @@
+[iocs.md](https://github.com/user-attachments/files/30283585/iocs.1.md)
+
+# Indicators of Compromise
+
+Machine-readable version: [`iocs.csv`](iocs.csv)
+
+All indicators defanged. **Durability** rates how costly the indicator is for the operator to change, following Bianco's Pyramid of Pain. High-durability indicators are worth building detection rules around. Low-durability indicators are worth blocking but will not hold.
+
+---
+
+## High durability
+
+The indicators worth building detection on. None of these can be changed cheaply.
+
+| Indicator | Type | Sample | What it is |
+|---|---|---|---|
+| `34.31.202.104` | IPv4 | A, C | Operator-controlled MTA on Google Cloud Platform. True origin of the recruitment cluster, behind the ESP relay. |
+| `mta2.jobadmiration[.]com` | Hostname | A, C | Hostname of that MTA. The `mta2` label implies sibling hosts not represented in this sample set. |
+| `653bd604a62321c3289bc8aa` | Account ID | A, C | Mailgun account identifier from `X-Feedback-Id`. Embedded ObjectId timestamp decodes to 27 October 2023. |
+| `["45479","<RECIPIENT>","926016"]` | Decoded header | A, C | `X-Mailgun-Sid` contents. Subscriber ID 45479 and list ID 926016 identical across both samples. |
+| Display name `Luton` with local part `Listings@` | Behaviour | A, B, C | Shared sender configuration across unrelated registered domains. |
+| Daily send window 12:15 to 12:24 local | Behaviour | A, B, C | Scheduled dispatch, consistent across consecutive days. |
+| `<14-digit-UTC-timestamp.16-hex@domain>` | Behaviour | A, C | Message-ID construction. Fingerprints the sending application. |
+
+**Note on the two account identifiers.** Neither is a block target. Both are correlation evidence, and both are worth citing in an abuse report to Mailgun because they identify the account rather than the message.
+
+**Verification outstanding.** The `34.31.202.104` address derives from a reversed-octet reading of the Google Cloud reverse DNS record. Confirm by forward lookup before operational use.
+
+---
+
+## Medium durability
+
+Registered domains. Changing one costs a registration fee plus DNS and authentication setup.
+
+| Indicator | Sample | Action |
+|---|---|---|
+| `jobadmiration[.]com` | A, C | Block at registered-domain level |
+| `careercougar[.]com` | B | Block at registered-domain level |
+| `flashrewardsmail[.]co[.]uk` | D | Block. UK jurisdiction, so ICO and Nominet escalation routes are also available. |
+| `dskpn2[.]us` | iCloud | Block at registered-domain level. Wildcard subdomains in use. |
+| `waterints[.]com` | iCloud | Verify before blocking. Possibly a compromised legitimate domain. |
+| `em9697[.]careercougar[.]com` | B | Detection signal. SendGrid dedicated sending subdomain, which requires deliberate DNS delegation. |
+
+**Block at the registered domain, not the hostname.** Wildcard DNS means fully-qualified hostname blocks are defeated at no cost to the operator.
+
+---
+
+## Low durability
+
+Worth blocking, but expect replacement.
+
+| Indicator | Type | Sample | Context |
+|---|---|---|---|
+| `Listings[@]jobadmiration[.]com` | Email | A, C | Sender |
+| `info[@]jobadmiration[.]com` | Email | A, C | Reply-To and unsubscribe mailbox |
+| `hello[@]flashrewardsmail[.]co[.]uk` | Email | D | Sender |
+| `reply[@]flashrewardsmail[.]co[.]uk` | Email | D | Reply-To |
+| `51.161.21.203` | IPv4 | iCloud | Sending server, OVH hosting, direct to MX. Report to `abuse@ovh[.]ca` |
+| `vcxbiuouioui` | String | iCloud | Google Cloud Storage bucket name. The actionable indicator, unlike the host. |
+| `hxxp://storage.googleapis[.]com/vcxbiuouioui/IMd02.html` | URL | iCloud | Payload object. See warning below. |
+
+---
+
+## Do not block
+
+Recorded deliberately. These appear in the samples but blocking them would cause disproportionate collateral impact, or would achieve nothing because the operator has no control over them.
+
+| Indicator | Reason |
+|---|---|
+| `69.72.42.2` | Mailgun shared pool address. Assigned by the provider, not chosen by the sender. |
+| `143.55.232.14` | Mailgun shared pool address. |
+| `168.245.26.190` | SendGrid shared pool address. |
+| `23.249.218.1` | Amazon SES `eu-west-2` shared pool address. |
+| `storage.googleapis[.]com` | Google Cloud Storage host. Shared with legitimate services at enormous scale. Report the bucket instead. |
+
+**Why this section exists.** Samples A and C were delivered from two different Mailgun addresses. That variation is not evasion, it is routine pool assignment, and treating it as tradecraft would overstate the assessment. Recording what is *not* evidence is part of the analysis.
+
+---
+
+## Usage
+
+**Forward:** feed medium and low durability indicators into mail filtering, DNS and proxy blocking. Build detection rules on the high durability behavioural indicators, which survive infrastructure rotation.
+
+**Retrospective:** search existing logs for these indicators to establish whether the sender has been seen before and who else received the messages. One reported email becomes an estate-wide check.
+
+**Escalation:** cite the account identifiers when reporting to Mailgun. Provider account suspension is the only control that reaches the operator directly rather than the message.
