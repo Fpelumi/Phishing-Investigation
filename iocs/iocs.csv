@@ -7,7 +7,9 @@ All indicators defanged. **Durability** rates how costly the indicator is for th
 ---
 
 ## High durability
+
 The indicators worth building detection on. None of these can be changed cheaply.
+
 | Indicator | Type | Sample | What it is |
 |---|---|---|---|
 | `34.31.202.104` | IPv4 | A, C | Operator-controlled MTA on Google Cloud Platform. True origin of the recruitment cluster, behind the ESP relay. |
