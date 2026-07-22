@@ -103,27 +103,18 @@ evidence/
 
 ---
 
-## Status
 
-| Section | State |
+## Further work
+
+| Item | Notes |
 |---|---|
-| Technical analysis, sample 1 | Complete |
-| Campaign analysis, samples 2 to 5 | Complete |
-| Cross-case findings | Complete |
-| Raw header analysis | Complete |
-| Indicators | Complete |
-| Initial email overview | Outstanding |
-| Impact assessment | Outstanding |
-| Recommendations | Outstanding |
-| Executive summary | Outstanding |
-| Live URL analysis | Outstanding, requires isolated environment |
+| Executive summary | One-page non-technical summary for a general reader |
+| Live URL analysis | Requires an isolated environment. The credential-harvesting URL was not retrieved. |
+| Domain registration lookups | WHOIS on the sending domains. Registration dates would corroborate the correlation findings independently. |
+| Body and link analysis, samples 2 to 5 | Headers analysed; message bodies and link destinations not yet examined |
 
 ---
 
 ## Limitations
 
-Five samples received by a single individual over a two-week period. Not a representative sample of mail in general, and no claim is made about prevalence.
-
-The credential-harvesting landing page was not retrieved, so no assessment is offered of what it requested or how credentials were handled. Attribution extends to hosting infrastructure only, and no claim is made about any operator's identity. No conclusion is offered as to whether any sender is operating unlawfully, only that the messages were unsolicited and that specific technical characteristics were observed.
-
-Two findings rest on stated inferences rather than confirmed fact: the reversed-octet reading of the Google Cloud reverse DNS record, and the interpretation of the account identifier as a MongoDB ObjectId. Both are identified as such at the point they are made.
+Five samples received by one individual over two weeks. Not representative, and no claim is made about prevalence or about any sender operating unlawfully. Two findings rest on stated inferences, identified as such in the analysis. Full detail in [`report/technical-analysis.md`](report/technical-analysis.md).
