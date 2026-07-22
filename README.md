@@ -1,4 +1,4 @@
-[README (1).md](https://github.com/user-attachments/files/30282477/README.1.md)# Phishing and Unsolicited Mail Analysis
+[README.md](https://github.com/user-attachments/files/30282477/README.1.md)# Phishing and Unsolicited Mail Analysis
 
 Analysis of five unsolicited emails received over a two-week period in July 2026, comprising one credential-harvesting attempt and four commercial bulk messages forming two separate operations.
 
@@ -14,11 +14,9 @@ The controls most organisations rely on would have flagged one message in five. 
 
 | Section | Contents |
 |---|---|
-| [`report/03-technical-analysis.md`](report/03-technical-analysis.md) | Credential-harvesting sample: authentication failure, forged delivery path, five evasion techniques |
-| [`report/04-campaign-analysis.md`](report/04-campaign-analysis.md) | Correlation of the recruitment cluster; contrast sample and jurisdictional analysis |
-| [`report/05-cross-case-findings.md`](report/05-cross-case-findings.md) | Cross-sample conclusions, indicator durability, recommendations |
-| [`report/06-raw-header-analysis.md`](report/06-raw-header-analysis.md) | Findings recoverable only from raw sources: true origin, conclusive correlation, operational age |
-| [`iocs/iocs.csv`](iocs/iocs.csv) | Indicators with confidence, durability and blocking guidance |
+| [`report/technical-analysis.md`](report/technical-analysis.md) | Full analysis of all five samples |
+| [`iocs/iocs.md`](iocs/iocs.md) | Indicators grouped by durability, with blocking guidance |
+| [`iocs/iocs.csv`](iocs/iocs.csv) | Same indicators, machine-readable |
 | [`evidence/`](evidence/) | Sanitised samples and redaction methodology |
 
 ## Summary of findings
@@ -78,19 +76,19 @@ Two decisions shaped the analysis and are worth stating explicitly.
 ## Repository structure
 
 ```
+README.md
 report/
-  03-technical-analysis.md    Credential-harvesting sample
-  04-campaign-analysis.md     Campaign correlation and contrast case
-  05-cross-case-findings.md   Cross-sample conclusions
-  06-raw-header-analysis.md   Raw source findings
-  phishing-report.md          Template, remaining narrative sections
-  README.md                   Section status index
+  technical-analysis.md              Full analysis of all five samples
 iocs/
-  iocs.csv                    Indicators with durability ratings
+  iocs.md                            Indicators grouped by durability
+  iocs.csv                           Same indicators, machine-readable
 evidence/
-  README.md                   Redaction methodology
-  sample-sanitised.eml        Credential harvest
-  sample-A..D-*-sanitised.eml Bulk mail samples
+  README.md                          Redaction methodology
+  sample-sanitised.eml               Credential harvest
+  sample-A-jobadmiration-sanitised.eml
+  sample-B-careercougar-sanitised.eml
+  sample-C-jobadmiration-sanitised.eml
+  sample-D-flashrewards-sanitised.eml
 ```
 
 ---
