@@ -1,0 +1,214 @@
+# 3. Technical Analysis
+
+All indicators in this section are defanged. The raw sample is included as `evidence/sample-sanitised.eml` with the recipient address redacted.
+
+---
+
+## 3.1 Header analysis
+
+### Authentication results
+
+| Check | Raw result | Interpretation |
+|---|---|---|
+| SPF | **pass** for `51.161.21.203`, authorised by `live-jobscheduling-icloudamazffffonawsdd2277.waterints[.]com` | The sending host is authorised by the owner of the envelope-sender domain. As that domain is attacker-controlled, this authorises the attacker's own infrastructure. |
+| DKIM | **permerror**, *no key for signature*, `header.i=@5ibhni.nx8om7.dskpn2[.]us`, `header.s=default` | Not a signature mismatch. The message carries a DKIM signature, but no corresponding public key exists in DNS at the declared selector. |
+| DMARC | **fail** | SPF passed but did not align. See below. |
+
+**Note on tooling.** The Gmail interface summarises the DKIM result as "FAIL". The raw header records `permerror (no key for signature)`, which is a materially different condition: a validation error rather than a failed validation. The distinction is analytically significant and is lost in the summary view. Header conclusions in this report are drawn from the raw message, not the client summary.
+
+### DKIM permerror, assessment
+
+The signature declares selector `default` at domain `5ibhni.nx8om7.dskpn2[.]us`. Verification requires a TXT record at `default._domainkey.5ibhni.nx8om7.dskpn2[.]us`, and none was retrievable at delivery time.
+
+Two readings are consistent with the evidence:
+
+1. **Configuration failure.** Signing was enabled without publishing the corresponding key, a common error in hastily-assembled bulk mail infrastructure.
+2. **Deliberately transient DNS.** The key was published for the campaign window and withdrawn, or a wildcard DNS configuration answers hostnames without serving the `_domainkey` record.
+
+The available evidence does not distinguish between these. Either is consistent with short-lived, disposable infrastructure.
+
+### DMARC alignment failure
+
+| Domain role | Value |
+|---|---|
+| `From:` header domain (visible to recipient) | `5ibhni.nx8om7.dskpn2[.]us` |
+| Envelope sender / `Return-Path` domain (SPF-authenticated) | `live-jobscheduling-icloudamazffffonawsdd2277.waterints[.]com` |
+
+DMARC requires an authentication pass **and** domain alignment with the `From:` header. SPF passed for the `waterints[.]com` subdomain, which does not align with the `dskpn2[.]us` domain in the `From:` header. DKIM does declare an aligned domain, but returned `permerror` and therefore cannot supply alignment either.
+
+**Both alignment paths fail, producing the DMARC failure despite a valid SPF pass.**
+
+This is the analytically important point of the header review. An SPF pass indicates only that the sending host was authorised by the domain it declared at the envelope level. Where the sender controls that domain, the check is trivially satisfied and carries no assurance of legitimacy.
+
+---
+
+## 3.2 Delivery path and forged headers
+
+The message contains four `Received:` headers. **They are not equally trustworthy.**
+
+`Received:` headers are prepended by each handling server, so the chain reads bottom-up. Any header added before the message reached infrastructure under trusted control is attacker-supplied and may be fabricated. In this message the first trusted hop is `mx.google.com`.
+
+### Trusted portion
+
+```
+Received: from unbeatablecloud.us.com (unbeatablecloud.us.com. [51.161.21.203])
+        by mx.google.com with ESMTPS id af79cd13be357-...
+        (version=TLS1_3 cipher=TLS_AES_256_GCM_SHA384 bits=256/256);
+        Thu, 09 Jul 2026 02:52:44 -0700 (PDT)
+```
+
+Added by Google on receipt. This is the only hop corroborated by an independent party, and it establishes a **direct submission from `51.161.21.203` to Google's MX**, a single hop with no intermediate relay.
+
+### Fabricated portion
+
+```
+Received: from njmta-53.sailthru.com (173.228.155.53) by dailybeast-a.sailthru.com
+        id h1t86m1qqbs3 ... (envelope-from delivery@mx.sailthru.com)
+Received: from nj1-madbrick.flt (172.18.20.7) by njmta-53.sailthru.com
+        id h1t7vc1qqbsf ... (envelope-from delivery@mx.sailthru.com)
+```
+
+These assert that the message transited Sailthru, a legitimate email service provider, including an instance apparently associated with a well-known publisher. **The assertion is false.** Grounds:
+
+1. **Position in the chain.** Both sit below the Google hop, placing them within the attacker-controlled portion of the message.
+2. **Contradiction with the trusted hop.** Google recorded direct receipt from `51.161.21.203`. Had the message genuinely originated at Sailthru, Google would have received it from Sailthru infrastructure.
+3. **Non-routable address.** `172.18.20.7` is RFC 1918 private address space and cannot appear as a legitimate public relay hop.
+4. **Envelope inconsistency.** These headers cite `delivery@mx.sailthru.com` as envelope-from, whereas the actual authenticated envelope sender was `Return@…waterints[.]com`.
+
+**Purpose.** Fabricated headers referencing a reputable ESP are intended to influence reputation-based filtering, and to mislead any recipient or analyst who reads the chain without first establishing which hops are trustworthy.
+
+> **Method note.** No conclusion in this report relies on the fabricated headers. The delivery path is established solely from the hop recorded by Google.
+
+---
+
+## 3.3 Structural evasion
+
+Several characteristics indicate deliberate filter evasion rather than incidental sloppiness.
+
+### Unicode homoglyphs in the display name
+
+```
+From: "𝗣aym𝗲nt_Declin𝗲d©" <edupreutnxjoip.77475570789982@5ibhni.nx8om7.dskpn2[.]us>
+```
+
+| Character | Codepoint | Block |
+|---|---|---|
+| `𝗣` | U+1D5E3 | Mathematical Alphanumeric Symbols |
+| `𝗲` | U+1D5F2 | Mathematical Alphanumeric Symbols |
+
+The display name is not ASCII. It renders visually as "Payment_Declined" but does not match that string at byte level, defeating exact-match rules on sender display names. The trailing `©` serves the same purpose.
+
+**Detection implication:** display-name rules must operate on Unicode-normalised text, or they can be bypassed at no cost to the attacker.
+
+### Message disguised as a delivery status notification
+
+```
+Content-Type: multipart/report; report-type=delivery-status
+```
+
+The message declares itself a delivery status notification, meaning an automated bounce. The actual content is an HTML credential-harvesting page. Delivery status notifications are frequently subject to lighter filtering as system-generated mail, making the mismatch a plausible deliberate choice.
+
+### Absent Message-ID
+
+```
+Message-ID: <7did4m1y.1g9q0220.9hj1wc.022ySMTPIN_ADDED_MISSING@mx.google.com>
+```
+
+The `SMTPIN_ADDED_MISSING` marker indicates the message **arrived with no `Message-ID` header** and one was generated by Google on receipt. Legitimate mail systems reliably set this header. Its absence indicates crude sending tooling rather than a standards-compliant MTA.
+
+### Bayesian poisoning in the plaintext part
+
+The `text/plain` alternative contains no meaningful content: an unrelated header line, a long numeric string, and approximately 180 characters of random lowercase consonants. Recipients using an HTML-capable client never see it.
+
+Its function is to dilute the statistical profile of the message against Bayesian spam classifiers. Its presence is itself a strong indicator of automated bulk mailing.
+
+---
+
+## 3.4 URL analysis
+
+Four URLs were extracted, all resolving to the same hosted object with differing query parameters.
+
+**Defanged:**
+
+```
+hxxp://storage.googleapis[.]com/vcxbiuouioui/IMd02.html#/redirect.html?syv=<token>
+```
+
+| Attribute | Value |
+|---|---|
+| Scheme | `http`, not TLS |
+| Host | `storage.googleapis[.]com` |
+| Bucket | `vcxbiuouioui` |
+| Object | `IMd02.html` |
+| Fragment | `#/redirect.html?syv=<token>` |
+
+### Abuse of trusted hosting
+
+The payload is hosted in **Google Cloud Storage**. The host domain is legitimate, widely used, and cannot be blocked without significant collateral impact. This defeats domain-reputation filtering entirely, and any user inspecting the link before clicking sees a recognisable Google domain.
+
+The meaningful indicator is the **bucket name** (`vcxbiuouioui`), not the host.
+
+### Fragment-based redirection
+
+The redirect target is carried in the **URL fragment**, after the `#` character. Fragments are not transmitted to the server. They are processed only by the client.
+
+Consequences:
+
+- Server-side URL scanners retrieving this URL receive the static `IMd02.html` object and no indication of the redirect destination
+- The redirect is executed by client-side JavaScript reading `location.hash`
+- Server logs at the hosting provider contain no record of the redirect target
+
+This is a deliberate technique to defeat automated URL analysis.
+
+### Per-link tokens
+
+The four URLs differ only in the `syv` parameter, which includes variant markers (`Out_`, `Uns_`) distinguishing the primary call-to-action from the unsubscribe link, alongside an encoded token.
+
+Decoding was attempted and produced no readable output, so the token does not contain a plaintext recipient address. It may nonetheless function as a database key mapping to the recipient on the sender's side.
+
+> **Handling caution.** Tokens of this form commonly identify the recipient. Submission of the full URL to a public analysis service may therefore disclose recipient identity to anyone later obtaining the sending list. Any submission should be made **unlisted or private**, or the token truncated. This applies equally to the unsubscribe link, interaction with which confirms the address is live.
+
+### Analysis status
+
+At time of writing the URL has **not** been retrieved. Live analysis is deferred to an isolated environment. Given the sample is approximately two weeks old, the hosted object is likely to have been removed. Where that is the case, *"object not available at time of analysis"* is recorded as the finding.
+
+---
+
+## 3.5 Infrastructure summary
+
+| Attribute | Value |
+|---|---|
+| Sending IP | `51.161.21.203` |
+| ASN | AS16276, OVH SAS |
+| ASN type | **Hosting** |
+| Location | Beauharnois, Quebec, Canada |
+| Reverse DNS | `unbeatablecloud.us[.]com` |
+| Abuse contact | `abuse@ovh[.]ca` |
+| Network | `51.161.21.0/24` |
+
+**Assessment.** The message originated from commodity rented hosting, not from an email service provider or corporate mail platform. Legitimate transactional mail purporting to originate from a major consumer cloud service would not be sent from such infrastructure. OVH is a legitimate provider whose infrastructure is being abused. Low-cost, rapidly-provisioned servers are attractive to bulk mail operations because they are disposable.
+
+**Domains observed:**
+
+| Layer | Domain | Registered domain |
+|---|---|---|
+| `From:` header | `5ibhni.nx8om7.dskpn2[.]us` | `dskpn2[.]us` |
+| Envelope sender | `live-jobscheduling-icloudamazffffonawsdd2277.waterints[.]com` | `waterints[.]com` |
+| Reverse DNS | `unbeatablecloud.us[.]com` | `us[.]com`, a second-level registry |
+| Payload hosting | `storage.googleapis[.]com` | Legitimate, abused |
+
+Four separate domains across four functions. Neither of the two attacker sending domains matches the other, and both use random or brand-imitating subdomain labels beneath the registered name, consistent with wildcard DNS permitting unlimited unique hostnames per registration.
+
+**Remediation consequence.** Blocking any fully-qualified hostname observed here is ineffective, because fresh subdomains can be generated at no cost. Blocking must be applied at the registered-domain level (`dskpn2[.]us`, `waterints[.]com`). The Google Cloud Storage host cannot be blocked at all and requires an abuse report instead.
+
+### Timestamp corroboration
+
+The subject line and `Date:` header both carry a `-0400` offset. Beauharnois observes UTC minus 4 during July. The offset in the message matches the local time of the identified sending infrastructure, consistent with the message having been generated on that infrastructure rather than relayed through it.
+
+Delivery at 10:52 BST corresponds to 05:52 EDT, confirming the embedded timestamp is genuine rather than fabricated. That is notable given that other headers in this message are demonstrably fabricated.
+
+---
+
+## Confidence statement
+
+Findings are drawn from the raw message source and open-source infrastructure lookups. Where a claim rests on attacker-supplied data it is identified as such and excluded from conclusions. The URL has not been retrieved, assessment of the landing page is outstanding, and no claim is made about its content.
